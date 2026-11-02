@@ -10,6 +10,12 @@ A fan-made, free browser battle royale for the [Catmeme Battlegrounds](https://c
 
 To run it yourself, serve the folder with any static web server. There's no build step.
 
+```bash
+python -m http.server 4175
+```
+
+Open `http://localhost:4175`. The lobby, fighter collection, pack reveal, pause menu and results adapt to desktop and phone screens. On a smaller screen the lobby scrolls, so the controls and artwork have their own space.
+
 | | Desktop | Phone |
 |---|---|---|
 | Move | WASD or arrow keys | Drag on the left side |
@@ -36,7 +42,9 @@ To run it yourself, serve the folder with any static web server. There's no buil
 
 **Kill streaks** call out FIRST BLOOD, DOUBLE, TRIPLE and MEGA SCRATCH.
 
-**My cards:** every fighter you pull is saved in your browser, so you can play as it again without opening a new pack. The menu also shows your wins, best kills and games played.
+**My fighters:** every fighter you pull is saved in your browser. Choose one from the lineup, then use **Play now** to play as that fighter again. **Play again** starts another round with the same fighter. Open a free pack from the lobby or lineup to discover the others. The menu also shows your wins, best kills and rounds played.
+
+Your first round includes brief movement, pounce and ultimate tips. The help screen shows touch or keyboard controls for your current input method.
 
 **Loot:**
 - **Yarn bomb:** thrown, does 2 damage in an area.
@@ -55,7 +63,8 @@ When the round ends, the result screen shows your place, kills and lives left, w
 
 | Path | What it is |
 |---|---|
-| `index.html` | The page, screens and styles. |
+| `index.html` | The page and screens. |
+| `design.css` | Lobby, collection, pack, pause and result layouts, including phone breakpoints. |
 | `game.js` | Game loop, input, bot AI, combat, loot, hazards, HUD and sound (synthesized with Web Audio). |
 | `art.js` | All the canvas drawing: cats, cards, pack and props. There are no image files. |
 | `concept.html` | The 28-second animated design trailer. |
