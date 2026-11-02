@@ -1,0 +1,4 @@
+exports/
+frames/
+node_modules/
+.vercel/
