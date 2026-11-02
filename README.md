@@ -14,7 +14,10 @@ To run it yourself, serve the folder with any static web server. There's no buil
 |---|---|---|
 | Move | WASD or arrow keys | Drag on the left side |
 | Scratch | Automatic when a cat is in reach | Automatic |
-| Special | `Space` | Tap the right side |
+| Pounce | `Space` | POUNCE button |
+| Use item | `Q` | Item button |
+| Ultimate | `E` | ULT button |
+| Pause | `P` or `Esc` | Pause button |
 | Mute | `M` | The sound button |
 
 ## How a round works
@@ -25,7 +28,15 @@ To run it yourself, serve the folder with any static web server. There's no buil
    - **Chain Royalty** (Legendary, 10%): a long fishbone blade that hits every cat in reach.
 2. **Drop in.** Steer your landing spot before the countdown ends.
 3. **Survive.** You have 9 lives, shown as paws. The 9 bots each have 8.
-4. **Special:** throws or fires the item you're holding. With no item, it's a pounce dash that ends in a free scratch.
+4. **Pounce:** a quick dash that ends in a free scratch. **Q** throws or fires the item you're holding.
+5. **Ultimate:** charges as you deal damage and get kills.
+   - **Nine-Tail Rush** (Street Cat): three dashes at the nearest cats.
+   - **Ground Pound** (Alley Boss): a slam that hits and stuns everything close.
+   - **Blade Storm** (Chain Royalty): spinning blades that shred everything around you.
+
+**Kill streaks** call out FIRST BLOOD, DOUBLE, TRIPLE and MEGA SCRATCH.
+
+**My cards:** every fighter you pull is saved in your browser, so you can play as it again without opening a new pack. The menu also shows your wins, best kills and games played.
 
 **Loot:**
 - **Yarn bomb:** thrown, does 2 damage in an area.

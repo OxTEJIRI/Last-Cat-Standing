@@ -53,7 +53,9 @@ const SFX = {
   warn: () => tone(880, 880, .05, 'square', .03)
 };
 const sfx = n => { try { SFX[n](); } catch (e) {} };
-function setMute(m) { muted = m; $('mute').textContent = m ? 'SOUND OFF' : 'SOUND ON'; try { localStorage.setItem('lcs-muted', m ? '1' : '0'); } catch (e) {} }
+function setMute(m) {
+  muted = m; $('mute').classList.toggle('off', m); $('mute').setAttribute('aria-label', m ? 'Unmute sound' : 'Mute sound'); $('btnSound').textContent = m ? 'SOUND OFF' : 'SOUND ON';
+  try { localStorage.setItem('lcs-muted', m ? '1' : '0'); } catch (e) {} }
 $('mute').onclick = e => { e.stopPropagation(); setMute(!muted); audio(); };
 setMute(muted);
 
@@ -77,6 +79,21 @@ const DESC = {
   rare: 'Alley Boss: slow and tanky. Every hit does 2 damage and knocks cats back.',
   legendary: 'Chain Royalty: a long fishbone blade that hits every cat in reach.'
 };
+const ULT = {
+  common: { name: 'NINE-TAIL RUSH', desc: 'Three dashes at the nearest cats, 2 damage each.' },
+  rare: { name: 'GROUND POUND', desc: 'Leap and slam. Hits and stuns every cat close by.' },
+  legendary: { name: 'BLADE STORM', desc: 'Spinning blades shred every cat around you.' }
+};
+const PERKS = { common: 'Fast and scrappy. Quickest swipes in the trenches.', rare: 'Slow and tanky. Every hit does 2 and knocks cats back.', legendary: 'Fishbone blade that hits every cat in reach.' };
+
+// Record and card collection, kept in this browser only.
+const SAVE = (() => {
+  const d = { wins: 0, games: 0, bestKills: 0, cards: { common: 0, rare: 0, legendary: 0 } };
+  try { const s = JSON.parse(localStorage.getItem('lcs-save') || 'null'); if (s) { Object.assign(d, s); d.cards = Object.assign({ common: 0, rare: 0, legendary: 0 }, s.cards); } } catch (e) {}
+  return d;
+})();
+const persist = () => { try { localStorage.setItem('lcs-save', JSON.stringify(SAVE)); } catch (e) {} };
+const owned = () => ['common', 'rare', 'legendary'].filter(k => SAVE.cards[k] > 0).length;
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const blocked = (x, y, m) => OBST.some(o => Math.hypot(o.x - x, o.y - y) < o.r + m);
 const scl = c => c.player ? 1.35 : 1.22;
@@ -94,7 +111,8 @@ function makeCat(o) {
 
 function newGame(r) {
   const F = FIGHTERS[r];
-  const p = makeCat({ player: true, name: 'YOU', skin: F.skin, weapon: F.weapon, speed: F.speed, dmg: F.dmg, cd: F.cd, range: F.range, kb: F.kb, cleave: !!F.cleave, lives: 9, max: 9 });
+  const p = makeCat({ player: true, name: 'YOU', kind: r, skin: F.skin, weapon: F.weapon, speed: F.speed, dmg: F.dmg, cd: F.cd, range: F.range, kb: F.kb, cleave: !!F.cleave, lives: 9, max: 9,
+    ult: 0, ulting: null, streak: 0, bestStreak: 0, lastKillT: -9, dealt: 0, loot: 0, ults: 0, trail: [] });
   const names = shuffle(BOT_NAMES.slice()).slice(0, 9), skins = shuffle(BOT_SKINS.slice()), cats = [p], spots = [];
   for (let i = 0; i < 9; i++) {
     const n = names[i], acc = n === 'DEV (ANON)' ? ['shades'] : n === 'SER WHISKERS' ? ['monocle'] : Math.random() < .2 ? ['shades'] : [];
@@ -109,7 +127,7 @@ function newGame(r) {
   g = { t: 0, ft: 0, phase: 'drop', cats, p, ret: [p.x, p.y], loot: [], hz: [], proj: [], parts: [], pops: [], ghosts: [], feed: [], laser: null, trail: [],
     slams: [{ s: '3', t0: .1, dur: .7 }, { s: '2', t0: .9, dur: .7 }, { s: '1', t0: 1.7, dur: .7 }],
     zr: 1000, cam: { x: p.x, y: p.y, z: null }, sh: { t0: -9, d: 1, a: 0 }, nextCandle: 6, nextRug: 10, nextLoot: 6,
-    rugs: RUG_SPOTS.map(([x, y]) => ({ x, y, w: 230, h: 130, st: 'idle', t0: 0 })), endAt: null, result: null, place: null, cause: '' };
+    rugs: RUG_SPOTS.map(([x, y]) => ({ x, y, w: 230, h: 130, st: 'idle', t0: 0 })), endAt: null, result: null, place: null, cause: '', hs: 0, firstBlood: false, sub: null };
   for (let i = 0; i < 4; i++) spawnLoot();
 }
 
@@ -143,15 +161,22 @@ function hit(t, d, src, cause, kb, force) {
   if (src && kb) { const dx = t.x - src.x, dy = t.y - src.y, m = Math.hypot(dx, dy) || 1; t.kx += dx / m * kb * 1.6; t.ky += dy / m * kb * 1.6; }
   pop(t.x + (Math.random() - .5) * 30, t.y - 95, '-' + d, t.player ? RED : '#fff', t.player ? 42 : 30);
   fur(t.x, t.y, t.skin, 7);
-  if (t.player) { shake(.2, 12); sfx('hurt'); } else if (src && src.player) sfx('hit');
+  if (t.player) { shake(.2, 12); sfx('hurt'); g.hs = Math.max(g.hs, .05); } else if (src && src.player) sfx('hit');
+  if (src && src.player) { src.dealt += d; g.hs = Math.max(g.hs, .035); if (!src.ulting) src.ult = Math.min(1, src.ult + d * .06); }
   if (t.lives <= 0) kill(t, src, cause);
 }
 function kill(t, src, cause) {
   t.alive = false; poof(t.x, t.y, t.skin); g.ghosts.push({ x: t.x, y: t.y, s: scl(t), t0: g.t });
   if (src) { src.kills++; g.feed.push({ t: g.t, a: src.player ? 'YOU' : src.name, v: 'scratched out', b: t.player ? 'YOU' : t.name }); }
   else g.feed.push({ t: g.t, a: t.player ? 'YOU' : t.name, v: cause, b: '' });
-  if (src && src.player) { pop(t.x, t.y - 135, 'SCRATCHED OUT', '#fff', 36); sfx('kill'); }
+  if (src && src.player) {
+    pop(t.x, t.y - 135, 'SCRATCHED OUT', '#fff', 36); sfx('kill'); g.hs = .09; src.ult = Math.min(1, src.ult + .12);
+    src.streak = g.t - src.lastKillT < 4 ? src.streak + 1 : 1; src.lastKillT = g.t; src.bestStreak = Math.max(src.bestStreak, src.streak);
+    const call = !g.firstBlood ? 'FIRST BLOOD' : ['', '', 'DOUBLE SCRATCH', 'TRIPLE SCRATCH'][src.streak] || (src.streak > 3 ? 'MEGA SCRATCH' : '');
+    if (call) { slam(call, src.streak > 2 ? GOLD : LIME, 1.2); g.sub = { s: src.streak > 1 ? `STREAK X${src.streak} · ULT +12%` : 'ULT +12%', t0: g.t, dur: 1.2 }; }
+  }
   else if (!t.player && onScreen(t.x, t.y)) sfx('meow');
+  g.firstBlood = true;
   const left = g.cats.filter(c => c.alive).length;
   if (t.player) { g.place = left + 1; g.cause = src ? `were scratched out by ${src.name}` : cause; endRound('lose'); }
   else if (left === 1 && g.p.alive) { g.place = 1; endRound('win'); }
@@ -187,15 +212,54 @@ function closestFoe(c, max) {
   for (const o of g.cats) { if (o === c || !o.alive) continue; const d = Math.hypot(o.x - c.x, o.y - c.y); if (d < bd) { bd = d; best = o; } }
   return best;
 }
-function special() {
-  if (screen !== 'game' || !g || g.phase !== 'fight' || !g.p.alive || g.result) return;
+const canAct = () => screen === 'game' && g && g.phase === 'fight' && g.p.alive && !g.result && !g.p.ulting;
+function pounce() {
+  if (!canAct()) return;
+  const p = g.p; if (g.t < p.dashReady) return;
+  const v = inputVec(); let dx = v[0], dy = v[1]; if (!dx && !dy) { dx = p.face; dy = 0; }
+  const m = Math.hypot(dx, dy); p.dash = { t: 0, dx: dx / m, dy: dy / m }; p.dashReady = g.t + 2; p.inv = Math.max(p.inv, .25); sfx('dash');
+}
+function useItem() {
+  if (!canAct()) return;
   const p = g.p;
   if (p.item === 'yarn') { const f = closestFoe(p, 480); throwYarn(p, f ? f.x : p.x + p.face * 300, f ? f.y : p.y); p.item = null; }
   else if (p.item === 'laser') { g.laser = { x: p.x + p.face * 70, y: p.y, an: Math.random() * TAU, until: g.t + 4.5, owner: p }; p.item = null; pop(p.x, p.y - 140, 'BOTS GO FERAL', RED, 40); sfx('pickup'); }
-  else if (g.t >= p.dashReady) {
-    const v = inputVec(); let dx = v[0], dy = v[1]; if (!dx && !dy) { dx = p.face; dy = 0; }
-    const m = Math.hypot(dx, dy); p.dash = { t: 0, dx: dx / m, dy: dy / m }; p.dashReady = g.t + 2; p.inv = .25; sfx('dash');
+}
+function ultimate() {
+  if (!canAct()) return;
+  const p = g.p; if (p.ult < 1) return;
+  p.ult = 0; p.ults++; p.ulting = { k: p.kind, t: 0, n: 0, next: 0 }; p.inv = Math.max(p.inv, .3); p.dash = null;
+  slam(ULT[p.kind].name, LIME, 1); sfx('reveal');
+}
+// Runs the active ultimate. Returns true while it takes over the player's movement.
+function updateUlt(p, dt) {
+  const u = p.ulting; u.t += dt; p.inv = Math.max(p.inv, .15);
+  if (u.k === 'common') {
+    if (!u.dash && u.n < 3 && u.t >= u.next) {
+      const f = closestFoe(p, 560); if (!f) { p.ulting = null; return false; }
+      const dx = f.x - p.x, dy = f.y - p.y, d = Math.hypot(dx, dy) || 1;
+      u.dash = { dx: dx / d, dy: dy / d, left: Math.max(.05, (d - 50) / 1600), tgt: f }; sfx('dash');
+    }
+    if (u.dash) {
+      const s = Math.min(u.dash.left, dt); p.x += u.dash.dx * 1600 * s; p.y += u.dash.dy * 1600 * s; u.dash.left -= dt;
+      p.face = Math.sign(u.dash.dx) || p.face; p.trail.push({ x: p.x, y: p.y, t: g.t });
+      if (u.dash.left <= 0) { p.swing = 0; if (u.dash.tgt.alive) hit(u.dash.tgt, 2, p, null, 280, true); ring(p.x, p.y, LIME, 120, .3, 6); u.dash = null; u.n++; u.next = u.t + .12; }
+    }
+    if (u.n >= 3 && !u.dash) p.ulting = null;
+    return true;
   }
+  if (u.k === 'rare') {
+    if (u.t >= .4 && !u.done) {
+      u.done = true; shake(.45, 24); sfx('boom'); g.hs = .12;
+      ring(p.x, p.y + 30, GOLD, 260, .5, 14); ring(p.x, p.y + 30, '#fff', 200, .4, 6); dust(p.x, p.y + 30, 30);
+      for (const c of g.cats) if (c !== p && c.alive && c.landed && Math.hypot(c.x - p.x, c.y - p.y) < 240) { hit(c, 3, p, null, 420, true); c.stun = .9; }
+    }
+    if (u.t >= .55) p.ulting = null;
+    return true;
+  }
+  if (u.t >= u.next) { u.next = u.t + .2; sfx('swipe'); for (const c of g.cats) if (c !== p && c.alive && c.landed && Math.hypot(c.x - p.x, c.y - p.y) < 150) hit(c, 1, p, null, 160, true); }
+  if (u.t >= 1.6) p.ulting = null;
+  return false;
 }
 
 // ---------- bots ----------
@@ -263,7 +327,7 @@ function pickups() {
     for (let i = g.loot.length - 1; i >= 0; i--) {
       const l = g.loot[i]; if (Math.hypot(l.x - c.x, l.y - c.y) > 52) continue;
       if ((l.k === 'yarn' || l.k === 'laser') && (c.item || (!c.player && l.k === 'laser'))) continue;
-      g.loot.splice(i, 1);
+      g.loot.splice(i, 1); if (c.player) c.loot++;
       const say = (s, col) => { if (c.player || onScreen(c.x, c.y)) pop(c.x, c.y - 140, s, col, c.player ? 38 : 28); };
       if (l.k === 'catnip') { c.lives = Math.min(c.max, c.lives + 2); c.spdUntil = g.t + 4; say('+2 LIVES · ZOOMIES', GREEN); if (c.player) sfx('pickup'); }
       else if (l.k === 'ca') {
@@ -347,7 +411,8 @@ function updateCat(c, dt) {
   c.atk = Math.max(0, c.atk - dt); c.inv = Math.max(0, c.inv - dt); c.stun = Math.max(0, c.stun - dt); c.faceT -= dt;
   if (c.swing >= 0) { c.swing += dt / .28; if (c.swing >= 1) c.swing = -1; }
   if (c.hurt >= 0) { c.hurt += dt; if (c.hurt > .12) c.hurt = -1; }
-  let dx = 0, dy = 0, sp = c.speed * (g.t < c.spdUntil ? 1.4 : 1);
+  if (c.ulting && updateUlt(c, dt)) { c.vx = c.vy = 0; c.moving = false; collide(c); return; }
+  let dx = 0, dy = 0, sp = c.speed * (g.t < c.spdUntil ? 1.4 : 1) * (c.ulting ? 1.25 : 1);
   if (c.player) { if (!g.result) [dx, dy] = inputVec(); }
   else { const d = botDir(c); dx = d[0]; dy = d[1]; sp *= d[2]; }
   if (c.dash) { c.dash.t += dt; dx = c.dash.dx; dy = c.dash.dy; sp = 1250; if (c.dash.t >= .16) { c.dash = null; tryAttack(c, true); } }
@@ -357,10 +422,14 @@ function updateCat(c, dt) {
   const dec = Math.exp(-dt * 9); c.kx *= dec; c.ky *= dec;
   if (Math.abs(dx) > .15 && c.faceT <= 0) c.face = Math.sign(dx);
   c.moving = Math.hypot(c.vx, c.vy) > 30; if (c.moving) c.walk += dt * 15;
+  if (c.dash) c.trail.push({ x: c.x, y: c.y, t: g.t });
+  collide(c);
+  if (Math.hypot(c.x - ZC[0], c.y - ZC[1]) > g.zr) { c.zt += dt; if (c.zt >= 1.1) { c.zt = 0; hit(c, 1, null, 'got liquidated by the zone', 0, true); } } else c.zt = 0;
+  if (c.alive && !c.ulting && (c.player || c.ai.s !== 'laser')) tryAttack(c);
+}
+function collide(c) {
   for (const o of OBST) { const ox = c.x - o.x, oy = c.y - o.y, d = Math.hypot(ox, oy), m = o.r + 22; if (d < m && d > 0) { c.x = o.x + ox / d * m; c.y = o.y + oy / d * m; } }
   c.x = clamp(c.x, 60, WW - 60); c.y = clamp(c.y, 90, WH - 50);
-  if (Math.hypot(c.x - ZC[0], c.y - ZC[1]) > g.zr) { c.zt += dt; if (c.zt >= 1.1) { c.zt = 0; hit(c, 1, null, 'got liquidated by the zone', 0, true); } } else c.zt = 0;
-  if (c.alive && (c.player || c.ai.s !== 'laser')) tryAttack(c);
 }
 function separate() {
   const al = g.cats.filter(c => c.alive && c.landed);
@@ -389,7 +458,9 @@ function updateDrop() {
   if (T >= 3.5) { g.phase = 'fight'; g.ft = 0; slam('SCRATCH.', LIME, .9); }
 }
 function update(dt) {
+  if (g.hs > 0) { g.hs -= dt; return; }
   g.t += dt; stepFX(dt);
+  if (g.p.trail.length) g.p.trail = g.p.trail.filter(q => g.t - q.t < .25);
   if (g.phase === 'drop') { updateDrop(); updateCam(dt, .8); return; }
   g.ft += dt; g.zr = zoneR(g.ft);
   for (const c of g.cats) if (c.alive) updateCat(c, dt);
@@ -440,16 +511,21 @@ function drawCatEnt(c) {
     drawCat(c.x, c.y - 420 * (1 - k), s * (1 + 2.2 * (1 - k)), { skin: c.skin, acc: c.acc, face: 1, time: g.t, mood: c.player ? 'angry' : 'feral', weapon: c.weapon, noShadow: true, tilt: Math.sin(g.t * 9 + c.seed) * .15 });
     G.restore(); return;
   }
+  if (c.trail) for (const q of c.trail) { G.save(); G.globalAlpha = .3 * (1 - (g.t - q.t) / .25); drawCat(q.x, q.y, s, { skin: c.skin, acc: c.acc, face: c.face, time: g.t, weapon: c.weapon, noShadow: true }); G.restore(); }
+  const u = c.ulting;
   let mood = 'normal';
-  if (c.swing >= 0) mood = 'angry'; if (!c.player && c.ai.s === 'laser') mood = 'feral'; if (c.player && g.result === 'win') mood = 'smug';
+  if (c.swing >= 0 || u) mood = 'angry'; if (!c.player && c.ai.s === 'laser') mood = 'feral'; if (c.player && g.result === 'win') mood = 'smug';
   if (g.t < c.dmgUntil) { G.strokeStyle = GOLD; G.lineWidth = 4; G.globalAlpha = .5 + .3 * Math.sin(g.t * 12); G.beginPath(); G.ellipse(c.x, c.y + 31 * s, 44 * s, 15 * s, 0, 0, TAU); G.stroke(); G.globalAlpha = 1; }
   if (g.t < c.spdUntil && c.moving) { G.fillStyle = 'rgba(34,196,107,.35)'; for (let i = 1; i <= 3; i++) { G.beginPath(); G.arc(c.x - c.vx * .03 * i, c.y + 20 - c.vy * .03 * i, 10 - i * 2, 0, TAU); G.fill(); } }
-  const flick = c.player && c.inv > 0 && !c.dash && Math.sin(g.t * 50) > 0;
+  let jy = 0; if (u && u.k === 'rare' && u.t < .4) { jy = Math.sin(u.t / .4 * Math.PI) * 140; G.fillStyle = 'rgba(0,0,0,.4)'; G.beginPath(); G.ellipse(c.x, c.y + 31 * s, 28 * s, 8 * s, 0, 0, TAU); G.fill(); }
+  if (u && u.k === 'legendary') { G.strokeStyle = LIME; G.lineWidth = 5; G.globalAlpha = .45 + .25 * Math.sin(g.t * 20); G.beginPath(); G.arc(c.x, c.y - 6 * s, 118, 0, TAU); G.stroke(); G.globalAlpha = 1; }
+  const flick = c.player && c.inv > 0 && !c.dash && !u && Math.sin(g.t * 50) > 0;
   if (flick) G.globalAlpha = .55;
-  drawCat(c.x, c.y, s, { skin: c.skin, acc: c.acc, face: c.face, moving: c.moving, walk: c.walk, time: g.t + c.seed, mood, weapon: c.weapon, swing: c.swing >= 0 ? c.swing : null, hurt: c.hurt >= 0, ring: c.player ? LIME : 'rgba(255,61,77,.6)' });
+  drawCat(c.x, c.y - jy, s * (1 + jy / 1000), { skin: c.skin, acc: c.acc, face: c.face, moving: c.moving, walk: c.walk, time: g.t + c.seed, mood, weapon: c.weapon, swing: c.swing >= 0 ? c.swing : null, hurt: c.hurt >= 0, ring: c.player ? LIME : 'rgba(255,61,77,.6)', noShadow: jy > 0 });
   G.globalAlpha = 1;
+  if (u && u.k === 'legendary') for (let i = 0; i < 3; i++) { G.save(); G.translate(c.x, c.y - 6 * s); G.scale(s, s); G.rotate(g.t * 14 + i * TAU / 3); G.translate(-20, -12); fishBlade(0); G.restore(); }
   if (c.stun > 0) for (let i = 0; i < 3; i++) { const a = g.t * 6 + i * TAU / 3; star(c.x + Math.cos(a) * 30, c.y - 78 * s + Math.sin(a) * 8, 8, GOLD); }
-  tag(c.x + 3 * s, c.y - 92 * s, c.player ? 'YOU' : c.name, c.player ? LIME : '#fff', c.player ? 0 : c.lives, c.player ? 0 : c.max);
+  tag(c.x + 3 * s, c.y - 92 * s - jy, c.player ? 'YOU' : c.name, c.player ? LIME : '#fff', c.player ? 0 : c.lives, c.player ? 0 : c.max);
   if (!c.player && c.ai.s === 'laser') { G.font = `38px ${DF}`; G.textAlign = 'center'; G.textBaseline = 'middle'; G.lineWidth = 6; G.strokeStyle = INK; G.strokeText('!', c.x + 44 * s, c.y - 62 * s); G.fillStyle = RED; G.fillText('!', c.x + 44 * s, c.y - 62 * s); }
 }
 function drawRug(r) {
@@ -526,7 +602,32 @@ function drawWorld() {
 
 // ---------- render: HUD ----------
 const uiK = () => clamp(Math.min(vw, vh) / 760, .62, 1.15);
-const specialBtn = () => { const k = uiK(); return { x: vw - 96 * k, y: vh - 110 * k, r: 62 * k }; };
+// The three action buttons: a bar at the bottom on desktop, thumb buttons bottom-right on phones.
+function hudButtons() {
+  const k = uiK();
+  if (touchMode) return { pounce: { x: vw - 70 * k, y: vh - 100 * k, r: 52 * k }, ult: { x: vw - 78 * k, y: vh - 226 * k, r: 42 * k }, item: { x: vw - 176 * k, y: vh - 84 * k, r: 36 * k } };
+  const cx = vw / 2, by = vh - 74 * k;
+  return { pounce: { x: cx - 104 * k, y: by + 8 * k, r: 39 * k, sq: true }, ult: { x: cx, y: by, r: 50 * k }, item: { x: cx + 104 * k, y: by + 8 * k, r: 39 * k, sq: true } };
+}
+function drawButtons(p, k) {
+  const B = hudButtons(), ready = g.t >= p.dashReady, full = p.ult >= 1;
+  const shape = b => { G.beginPath(); if (b.sq) G.roundRect(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2, 10 * k); else G.arc(b.x, b.y, b.r, 0, TAU); };
+  const base = (b, border) => { shape(b); G.fillStyle = 'rgba(11,11,11,.9)'; G.fill(); G.lineWidth = 3 * k; G.strokeStyle = border; G.stroke(); };
+  const label = (b, s, c) => { G.font = `700 ${11 * k}px ${MF}`; const w = G.measureText(s).width + 14 * k, y = b.y + b.r + 6 * k; G.fillStyle = 'rgba(11,11,11,.86)'; G.beginPath(); G.roundRect(b.x - w / 2, y, w, 20 * k, 4); G.fill(); G.fillStyle = c; G.textAlign = 'center'; G.textBaseline = 'middle'; G.fillText(s, b.x, y + 10 * k + 1); };
+  const key = (b, s, bg) => { if (touchMode) return; G.font = `700 ${11 * k}px ${MF}`; const w = G.measureText(s).width + 12 * k, x = b.x - b.r - 8 * k, y = b.y - b.r - 10 * k; G.fillStyle = bg; G.beginPath(); G.roundRect(x, y, w, 20 * k, 4); G.fill(); G.fillStyle = INK; G.textAlign = 'left'; G.textBaseline = 'middle'; G.fillText(s, x + 6 * k, y + 10 * k + 1); };
+  let b = B.pounce; base(b, ready ? LIME : '#444');
+  if (!ready) { G.save(); shape(b); G.clip(); G.fillStyle = 'rgba(0,0,0,.6)'; G.fillRect(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2 * clamp((p.dashReady - g.t) / 2, 0, 1)); G.restore(); }
+  paw(b.x, b.y + 2 * k, b.r * .52, ready ? LIME : '#555', null); key(b, 'SPACE', LIME); label(b, 'POUNCE', '#fff');
+  b = B.ult; G.beginPath(); G.arc(b.x, b.y, b.r, 0, TAU); G.fillStyle = 'rgba(11,11,11,.9)'; G.fill(); G.lineWidth = 6 * k; G.strokeStyle = '#2e2e2e'; G.beginPath(); G.arc(b.x, b.y, b.r - 3 * k, 0, TAU); G.stroke();
+  if (p.ult > 0) { G.strokeStyle = LIME; G.lineCap = 'round'; G.beginPath(); G.arc(b.x, b.y, b.r - 3 * k, -Math.PI / 2, -Math.PI / 2 + TAU * p.ult); G.stroke(); G.lineCap = 'butt'; }
+  if (full) { G.globalAlpha = .18 + .14 * Math.sin(g.t * 8); G.fillStyle = LIME; G.beginPath(); G.arc(b.x, b.y, b.r - 9 * k, 0, TAU); G.fill(); G.globalAlpha = 1; }
+  G.font = `${(full ? 30 : 24) * k}px ${DF}`; G.fillStyle = full ? LIME : '#fff'; G.textAlign = 'center'; G.textBaseline = 'middle'; G.fillText(full ? 'ULT' : Math.floor(p.ult * 100) + '%', b.x, b.y + 1);
+  key(b, 'E', LIME); label(b, ULT[p.kind].name, LIME);
+  b = B.item; const col = p.item === 'yarn' ? PINK : p.item === 'laser' ? RED : '#444'; base(b, col);
+  if (p.item === 'yarn') yarnBall(b.x, b.y, b.r * .48, g.t * 2); else if (p.item === 'laser') laserPen(b.x, b.y, b.r * .55);
+  else { G.font = `700 ${10 * k}px ${MF}`; G.fillStyle = '#8a8a8a'; G.textAlign = 'center'; G.textBaseline = 'middle'; G.fillText('EMPTY', b.x, b.y); }
+  key(b, 'Q', p.item ? col : '#8a8a8a'); label(b, p.item === 'yarn' ? 'YARN BOMB' : p.item === 'laser' ? 'LASER' : 'ITEM', '#fff');
+}
 function hudSlam(s, u, dur, y, size, col) {
   if (u < 0 || u > dur) return;
   const a = u < dur - .15 ? 1 : (dur - u) / .15, k = 1 + .45 * (1 - eOut(u / .16));
@@ -567,14 +668,26 @@ function drawHUD() {
     const a = .45 + .3 * Math.sin(g.t * 10); G.strokeStyle = `rgba(255,61,77,${a})`; G.lineWidth = 26 * k; G.strokeRect(0, 0, vw, vh);
     G.font = `${30 * k}px ${DF}`; G.fillStyle = RED; G.textAlign = 'center'; G.textBaseline = 'middle'; G.fillText('GET BACK IN THE ZONE', vw / 2, vh * .72);
   }
-  const sb = specialBtn(), ready = g.t >= p.dashReady, label = p.item === 'yarn' ? 'THROW' : p.item === 'laser' ? 'LASER' : 'POUNCE';
-  G.fillStyle = 'rgba(11,11,11,.6)'; G.beginPath(); G.arc(sb.x, sb.y, sb.r, 0, TAU); G.fill();
-  G.lineWidth = 5 * k; G.strokeStyle = p.item || ready ? LIME : '#444'; G.stroke();
-  if (!p.item && !ready) { G.strokeStyle = LIME; G.beginPath(); G.arc(sb.x, sb.y, sb.r, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - (p.dashReady - g.t) / 2)); G.stroke(); }
-  if (p.item === 'yarn') yarnBall(sb.x, sb.y - 4 * k, 22 * k, g.t * 2);
-  else if (p.item === 'laser') laserPen(sb.x, sb.y - 4 * k, 24 * k);
-  else { G.save(); G.translate(sb.x, sb.y); paw(0, 0, 26 * k, ready ? LIME : '#555', null); G.restore(); }
-  G.font = `700 ${12 * k}px ${MF}`; G.fillStyle = 'rgba(255,255,255,.75)'; G.textAlign = 'center'; G.textBaseline = 'alphabetic'; G.fillText(touchMode ? label : label + ' [SPACE]', sb.x, sb.y + sb.r + 18 * k);
+  drawButtons(p, k);
+  if (!touchMode) {
+    const st = [['KILLS', String(p.kills), LIME], ['STREAK', 'X' + Math.max(1, g.t - p.lastKillT < 4 ? p.streak : 0), '#fff'], ['DAMAGE', String(p.dealt), '#fff']];
+    let x = pad; const y = vh - pad - 62 * k;
+    G.fillStyle = 'rgba(11,11,11,.86)'; G.beginPath(); G.roundRect(pad, y, 3 * 86 * k, 62 * k, 8); G.fill();
+    st.forEach(([l, v, c], i) => {
+      if (i) { G.fillStyle = '#2a2a2a'; G.fillRect(x, y + 8 * k, 1, 46 * k); }
+      G.font = `700 ${11 * k}px ${MF}`; G.fillStyle = MUTED; G.textAlign = 'left'; G.textBaseline = 'alphabetic'; G.fillText(l, x + 14 * k, y + 22 * k);
+      G.font = `${26 * k}px ${DF}`; G.fillStyle = c; G.fillText(v, x + 14 * k, y + 52 * k); x += 86 * k;
+    });
+    const mw = 190 * k, mh = mw * WH / WW, mx = vw - pad - mw, my = vh - pad - mh, sx = mw / WW;
+    G.fillStyle = 'rgba(11,11,11,.9)'; G.beginPath(); G.roundRect(mx, my, mw, mh, 8); G.fill(); G.lineWidth = 2; G.strokeStyle = '#2e2e2e'; G.stroke();
+    G.save(); G.beginPath(); G.roundRect(mx, my, mw, mh, 8); G.clip();
+    G.setLineDash([5, 4]); G.strokeStyle = RED; G.lineWidth = 2; G.beginPath(); G.arc(mx + ZC[0] * sx, my + ZC[1] * sx, g.zr * sx, 0, TAU); G.stroke(); G.setLineDash([]);
+    for (const l of g.loot) { G.fillStyle = GOLD; G.fillRect(mx + l.x * sx - 2, my + l.y * sx - 2, 4, 4); }
+    for (const c of g.cats) if (c.alive && c.landed && !c.player) { G.fillStyle = RED; G.beginPath(); G.arc(mx + c.x * sx, my + c.y * sx, 3.5, 0, TAU); G.fill(); }
+    if (p.alive) { G.fillStyle = LIME; G.beginPath(); G.arc(mx + p.x * sx, my + p.y * sx, 5, 0, TAU); G.fill(); }
+    G.restore();
+    G.font = `700 ${10 * k}px ${MF}`; G.fillStyle = MUTED; G.textAlign = 'left'; G.textBaseline = 'alphabetic'; G.fillText('MAP', mx + 8, my + mh - 7);
+  }
   if (touchMode) {
     const R = 56 * k, bx = joy.active ? joy.ox : 100 * k + 20, by = joy.active ? joy.oy : vh - 110 * k;
     G.lineWidth = 4; G.strokeStyle = 'rgba(255,255,255,.22)'; G.beginPath(); G.arc(bx, by, R, 0, TAU); G.stroke();
@@ -583,11 +696,17 @@ function drawHUD() {
   }
   if (g.phase === 'drop' && g.t < 2.4) { G.font = `700 ${16 * k}px ${MF}`; G.fillStyle = LIME; G.textAlign = 'center'; G.textBaseline = 'middle'; G.fillText(touchMode ? 'DRAG TO STEER YOUR DROP' : 'WASD / ARROWS TO STEER YOUR DROP', vw / 2, vh * .62); }
   if (g.phase === 'fight' && g.ft < 5) {
-    G.globalAlpha = g.ft > 4.4 ? (5 - g.ft) / .6 : 1; G.font = `700 ${14 * k}px ${MF}`; const tip = 'WALK INTO CATS TO SCRATCH · GRAB LOOT · STAY IN THE ZONE';
-    const tw = Math.min(vw - 24, G.measureText(tip).width + 30); G.fillStyle = 'rgba(11,11,11,.82)'; G.beginPath(); G.roundRect(vw / 2 - tw / 2, vh * .8, tw, 36 * k, 6); G.fill();
-    G.fillStyle = '#fff'; G.textAlign = 'center'; G.textBaseline = 'middle'; G.fillText(tip, vw / 2, vh * .8 + 18 * k, vw - 40); G.globalAlpha = 1;
+    G.globalAlpha = g.ft > 4.4 ? (5 - g.ft) / .6 : 1; G.font = `700 ${14 * k}px ${MF}`;
+    const tip = touchMode ? 'WALK INTO CATS TO SCRATCH · HITS CHARGE YOUR ULT' : 'WALK INTO CATS TO SCRATCH · SPACE POUNCE · E ULTIMATE · Q ITEM';
+    const tw = Math.min(vw - 24, G.measureText(tip).width + 30); G.fillStyle = 'rgba(11,11,11,.82)'; G.beginPath(); G.roundRect(vw / 2 - tw / 2, vh * .64, tw, 36 * k, 6); G.fill();
+    G.fillStyle = '#fff'; G.textAlign = 'center'; G.textBaseline = 'middle'; G.fillText(tip, vw / 2, vh * .64 + 18 * k, vw - 40); G.globalAlpha = 1;
   }
-  for (const s of g.slams) hudSlam(s.s, g.t - s.t0, s.dur, vh * .3, Math.min(110 * k, vw / Math.max(4, s.s.length * .5)), s.c);
+  for (const s of g.slams) { G.font = `${100 * k}px ${DF}`; const w = G.measureText(s.s).width * 1.45; hudSlam(s.s, g.t - s.t0, s.dur, vh * .3, w > vw * .92 ? 100 * k * vw * .92 / w : 100 * k, s.c); }
+  if (g.sub && g.t - g.sub.t0 < g.sub.dur) {
+    const u = g.t - g.sub.t0; G.globalAlpha = u > g.sub.dur - .15 ? (g.sub.dur - u) / .15 : 1;
+    G.font = `700 ${14 * k}px ${MF}`; const w = G.measureText(g.sub.s).width + 24 * k, y = vh * .3 + 62 * k;
+    G.fillStyle = INK; G.beginPath(); G.roundRect(vw / 2 - w / 2, y, w, 28 * k, 6); G.fill(); G.fillStyle = LIME; G.textAlign = 'center'; G.textBaseline = 'middle'; G.fillText(g.sub.s, vw / 2, y + 14 * k + 1); G.globalAlpha = 1;
+  }
   if (g.result === 'win') { for (let i = 0; i < 60; i++) { const x = (i * 97.3 % 1) * vw + ((i * 37) % vw), y = ((g.t * (160 + (i * 53) % 140) + i * 61) % (vh + 40)) - 20; G.save(); G.translate(x % vw, y); G.rotate(g.t * 4 + i); G.fillStyle = [LIME, GOLD, '#fff', PINK][i % 4]; G.fillRect(-4, -8, 8, 16); G.restore(); } }
 }
 function render() {
@@ -601,14 +720,14 @@ function render() {
 }
 
 // ---------- screens ----------
-function show(id) { for (const s of ['menu', 'pack', 'end']) $(s).classList.toggle('hidden', s !== id); }
+function show(id) { for (const s of ['menu', 'pack', 'end', 'cards', 'pause', 'help']) $(s).classList.toggle('hidden', s !== id); }
 function renderHero(t) {
   const w = heroCv.width, h = heroCv.height; if (w < 2) return;
   useCtx(HC); HC.setTransform(1, 0, 0, 1, 0, 0); HC.clearRect(0, 0, w, h);
   const s = w / 150; drawCat(w * .48, h * .66, s, { skin: 'royal', mood: 'smug', weapon: 'fish', wAngle: .1, time: t, noShadow: true });
 }
 function openPack() {
-  audio(); screen = 'pack'; show('pack'); g = null;
+  audio(); screen = 'pack'; show('pack'); g = null; $('pauseBtn').classList.add('hidden');
   pk = { taps: 0, shake: 0, ripples: [], open: null, t: 0, shown: false };
   $('packTitle').textContent = 'TAP THE PACK'; $('packTitle').style.color = LIME; $('packInfo').classList.add('hidden');
 }
@@ -635,18 +754,68 @@ function renderPack(dt) {
   if (u >= 0 && u < .2) { SG.fillStyle = `rgba(255,255,255,${(.2 - u) / .2 * .85})`; SG.fillRect(0, 0, 600, 780); }
   if (u > 1.2 && !pk.shown) {
     pk.shown = true; $('packTitle').textContent = `${C.label} PULL.`; $('packTitle').style.color = C.frame;
-    $('fighterDesc').textContent = DESC[rarity] + ` Odds: ${C.odds}.`; $('packInfo').classList.remove('hidden');
+    $('fighterDesc').textContent = DESC[rarity] + ` Ultimate: ${ULT[rarity].name}.`; $('packInfo').classList.remove('hidden');
+    SAVE.cards[rarity]++; persist();
   }
 }
-function startGame() { audio(); newGame(rarity); screen = 'game'; show(null); for (const k in keys) keys[k] = false; }
+const KINDS = ['common', 'rare', 'legendary'];
+const KEYS = [['WASD', 'Move. You scratch any cat in reach automatically.'], ['SPACE', 'Pounce: a quick dash that ends in a free scratch.'], ['Q', 'Use your item: yarn bomb or laser pointer.'], ['E', 'Ultimate, once the ring is full.'], ['P / ESC', 'Pause.'], ['M', 'Mute or unmute.']];
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const cardCache = {};
+function cardImg(kind) {
+  if (!cardCache[kind]) { const c = document.createElement('canvas'); c.width = 300; c.height = 445; useCtx(c.getContext('2d')); drawCard(150, 222.5, 300, 445, kind, 1, 0, 1); cardCache[kind] = c.toDataURL('image/png'); }
+  return cardCache[kind];
+}
+function catImg(skin, mood, weapon) {
+  const c = document.createElement('canvas'); c.width = 520; c.height = 520; useCtx(c.getContext('2d'));
+  drawCat(260, 330, 4.5, { skin, mood, weapon, wAngle: .1, time: 1, noShadow: true }); return c.toDataURL('image/png');
+}
+for (const id of ['pauseKeys', 'helpKeys']) $(id).innerHTML = KEYS.map(([k, d]) => `<div class="keyrow"><span class="keycap">${k}</span><span>${d}</span></div>`).join('');
+
+function refreshMenu() {
+  $('recWins').textContent = SAVE.wins; $('recBest').textContent = SAVE.bestKills; $('recGames').textContent = SAVE.games;
+  $('recCards').textContent = `${owned()}/3`; $('cardsBadge').textContent = `${owned()}/3`;
+  $('menuCardA').src = cardImg('common'); $('menuCardB').src = cardImg('rare');
+}
+function startGame() { audio(); newGame(rarity); screen = 'game'; show(null); $('pauseBtn').classList.remove('hidden'); for (const k in keys) keys[k] = false; }
+function pauseGame() {
+  if (screen !== 'game' || !g || g.result) return;
+  screen = 'pause'; show('pause'); joy.active = false; joy.id = null;
+  $('pauseInfo').textContent = `// ROUND ${fmt(g.ft)} · ${g.cats.filter(c => c.alive).length} CATS LEFT`; $('btnPauseSound').textContent = muted ? 'SOUND: OFF' : 'SOUND: ON';
+}
+function resumeGame() { if (screen !== 'pause') return; screen = 'game'; show(null); for (const k in keys) keys[k] = false; }
+function toMenu() { g = null; screen = 'menu'; show('menu'); $('pauseBtn').classList.add('hidden'); refreshMenu(); }
+function openCards() {
+  screen = 'cards'; show('cards'); $('pauseBtn').classList.add('hidden'); g = null;
+  $('cardsSub').textContent = owned() ? `You've pulled ${owned()} of 3. Play as one you own, or open a new pack for a shot at the Legendary.` : 'No cards yet. Open a pack to pull your first fighter.';
+  $('cardGrid').innerHTML = KINDS.map(k => {
+    const C = CARDS[k], n = SAVE.cards[k], own = n > 0, sel = own && k === rarity, col = k === 'legendary' ? GOLD : k === 'rare' ? '#8fa9ff' : MUTED;
+    return `<div class="fcol"><div class="fcard${sel ? ' sel' : ''}${own ? '' : ' locked'}">${sel ? '<span class="badge">SELECTED</span>' : ''}
+      <div class="fimg"><img src="${cardImg(k)}" alt="${C.name} card">${own ? '' : '<span class="q">?</span>'}</div>
+      <div class="finfo"><small style="color:${col}">${C.label} · ${own ? 'OWNED ×' + n : 'NOT PULLED'}</small><b>${C.name}</b><p>${PERKS[k]}</p>
+      <small class="u" style="color:${k === 'legendary' && !own ? GOLD : LIME}">ULTIMATE</small><em style="color:${k === 'legendary' && !own ? GOLD : LIME}">${ULT[k].name}</em><p>${ULT[k].desc}</p></div></div>
+      ${own ? `<button class="btn ${sel ? 'lime' : 'outline-w'}" data-play="${k}">PLAY AS ${C.name}</button>` : `<button class="btn outline-g" data-pull="1">PULL TO UNLOCK</button>`}</div>`;
+  }).join('');
+}
+$('cardGrid').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (b) { if (b.dataset.play) { rarity = b.dataset.play; startGame(); } else openPack(); return; }
+  const col = e.target.closest('.fcol'); if (!col) return; const k = KINDS[[...$('cardGrid').children].indexOf(col)]; if (SAVE.cards[k] > 0) { rarity = k; openCards(); }
+});
 function showEnd() {
-  screen = 'end'; show('end');
-  const win = g.result === 'win', p = g.p, C = CARDS[rarity];
-  $('endTitle').textContent = win ? 'WINNER WINNER' : 'SCRATCHED OUT.'; $('endTitle').style.color = win ? '#fff' : RED;
+  screen = 'end'; show('end'); $('pauseBtn').classList.add('hidden');
+  const win = g.result === 'win', p = g.p, C = CARDS[rarity], newBest = p.kills > 0 && p.kills > SAVE.bestKills;
+  SAVE.games++; if (win) SAVE.wins++; SAVE.bestKills = Math.max(SAVE.bestKills, p.kills); persist();
+  $('endKicker').textContent = `// ROUND OVER · SURVIVED ${fmt(g.ft)}`;
+  $('endTitle').innerHTML = win ? 'WINNER<br>WINNER' : 'SCRATCHED<br>OUT.';
   $('endSub').textContent = win ? 'TUNA DINNER.' : `#${g.place} OF 10`;
-  $('endStats').innerHTML = [['PLACE', `#${g.place} / 10`, LIME], ['KILLS', String(p.kills), '#fff'], ['LIVES', `${p.lives} / 9`, '#fff'], ['PULL', C.label, C.frame]]
-    .map(([l, v, c]) => `<div class="stat"><small>${l}</small><b style="color:${c}${v.length > 7 ? ';font-size:clamp(13px,2.6vw,22px)' : ''}">${v}</b></div>`).join('');
-  $('endCause').textContent = win ? `You outlasted 9 cats as ${C.name}. The trenches are yours.` : `You ${g.cause}.`;
+  $('endHead').textContent = win ? 'LAST CAT STANDING · #1 OF 10' : `YOU PLACED #${g.place} OF 10`;
+  $('endBest').classList.toggle('hidden', !newBest);
+  $('endCat').src = catImg(FIGHTERS[rarity].skin, win ? 'smug' : 'dead', FIGHTERS[rarity].weapon);
+  $('endStats').innerHTML = [['PLACE', `#${g.place}/10`, LIME], ['KILLS', p.kills, '#fff'], ['LIVES LEFT', `${p.lives}/9`, '#fff'], ['DAMAGE DEALT', p.dealt, '#fff'], ['BEST STREAK', p.bestStreak ? 'X' + p.bestStreak : '0', '#fff'], ['LOOT GRABBED', p.loot, '#fff']]
+    .map(([l, v, c]) => `<div class="stat"><small>${l}</small><b style="color:${c}">${v}</b></div>`).join('');
+  $('endCardImg').src = cardImg(rarity); $('endCardLabel').textContent = `PLAYED AS · ${C.label}`; $('endCardLabel').style.color = rarity === 'legendary' ? GOLD : rarity === 'rare' ? '#8fa9ff' : MUTED;
+  $('endCardName').textContent = C.name;
+  $('endCause').textContent = (win ? 'You outlasted 9 cats.' : `You ${g.cause}.`) + ` ${ULT[rarity].name.toLowerCase().replace(/(^|\s|-)\S/g, m => m.toUpperCase())} used ${p.ults === 1 ? 'once' : p.ults + ' times'}.`;
 }
 function shareText() {
   const C = CARDS[rarity], p = g.p;
@@ -655,8 +824,20 @@ function shareText() {
     : `Placed #${g.place}/10 in CMBG: Last Cat Standing 🐾 ${p.kills} kills as a ${C.label} ${C.name}.\n\nGmeow or get scratched out @Cmbg_RH`;
 }
 $('btnPlay').onclick = openPack;
+$('btnCards').onclick = openCards;
+$('btnCardsBack').onclick = toMenu;
+$('btnCardsPack').onclick = openPack;
+$('btnHow').onclick = () => { screen = 'help'; show('help'); };
+$('btnHelpBack').onclick = () => { screen = 'menu'; show('menu'); };
+$('btnSound').onclick = () => { setMute(!muted); audio(); $('btnSound').textContent = muted ? 'SOUND OFF' : 'SOUND ON'; };
 $('btnDrop').onclick = startGame;
 $('btnAgain').onclick = openPack;
+$('btnEndCards').onclick = openCards;
+$('pauseBtn').onclick = e => { e.stopPropagation(); pauseGame(); };
+$('btnResume').onclick = resumeGame;
+$('btnRestart').onclick = () => { show(null); startGame(); };
+$('btnQuit').onclick = toMenu;
+$('btnPauseSound').onclick = () => { setMute(!muted); $('btnPauseSound').textContent = muted ? 'SOUND: OFF' : 'SOUND: ON'; };
 $('btnShare').onclick = () => {
   const url = location.protocol.startsWith('http') ? location.origin + location.pathname : '';
   window.open('https://x.com/intent/post?text=' + encodeURIComponent(shareText()) + (url ? '&url=' + encodeURIComponent(url) : ''), '_blank', 'noopener');
@@ -665,18 +846,23 @@ $('btnShare').onclick = () => {
 // ---------- input ----------
 addEventListener('keydown', e => {
   keys[e.code] = true;
-  if (e.code === 'Space') { e.preventDefault(); if (screen === 'game') special(); else if (screen === 'pack' && pk.open == null) stageCv.dispatchEvent(new PointerEvent('pointerdown')); }
-  if (e.code === 'KeyM') setMute(!muted);
-  if (e.code === 'Enter') { if (screen === 'menu') openPack(); else if (screen === 'end') openPack(); else if (screen === 'pack' && pk.shown) startGame(); }
+  if (e.code === 'Space') { e.preventDefault(); if (screen === 'game') pounce(); else if (screen === 'pack' && pk.open == null) stageCv.dispatchEvent(new PointerEvent('pointerdown')); }
+  if (e.code === 'KeyQ' && screen === 'game') useItem();
+  if (e.code === 'KeyE' && screen === 'game') ultimate();
+  if (e.code === 'KeyP' || e.code === 'Escape') { if (screen === 'game') pauseGame(); else if (screen === 'pause') resumeGame(); else if (screen === 'help') { screen = 'menu'; show('menu'); } }
+  if (e.code === 'KeyM') { setMute(!muted); $('btnSound').textContent = muted ? 'SOUND OFF' : 'SOUND ON'; }
+  if (e.code === 'Enter') { if (screen === 'menu' || screen === 'end') openPack(); else if (screen === 'pack' && pk.shown) startGame(); else if (screen === 'pause') resumeGame(); }
   if (e.code.startsWith('Arrow')) e.preventDefault();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; joy.active = false; joy.id = null; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; joy.active = false; joy.id = null; if (screen === 'game' && g && g.phase === 'fight') pauseGame(); });
 cv.addEventListener('pointerdown', e => {
   audio(); if (screen !== 'game') return;
   if (e.pointerType === 'touch') touchMode = true;
-  const sb = specialBtn();
-  if (Math.hypot(e.clientX - sb.x, e.clientY - sb.y) < sb.r * 1.3 || (touchMode && e.clientX > vw * .6)) { special(); return; }
+  const B = hudButtons(), near = b => Math.hypot(e.clientX - b.x, e.clientY - b.y) < b.r * 1.25;
+  if (near(B.ult)) { ultimate(); return; }
+  if (near(B.item)) { useItem(); return; }
+  if (near(B.pounce) || (touchMode && e.clientX > vw * .6)) { pounce(); return; }
   if (joy.id == null) { joy.id = e.pointerId; joy.active = true; joy.ox = joy.x = e.clientX; joy.oy = joy.y = e.clientY; try { cv.setPointerCapture(e.pointerId); } catch (err) {} }
 });
 cv.addEventListener('pointermove', e => { if (e.pointerId === joy.id) { joy.x = e.clientX; joy.y = e.clientY; } });
@@ -687,11 +873,13 @@ cv.addEventListener('pointerup', endJoy); cv.addEventListener('pointercancel', e
 let last = 0;
 function frame(ms) {
   const s = ms / 1000, dt = Math.min(.05, last ? s - last : 0); last = s;
-  if (screen === 'menu') renderHero(s);
+  if (screen === 'menu' || screen === 'help') renderHero(s);
   else if (screen === 'pack') renderPack(dt);
-  if (g && (screen === 'game' || screen === 'end')) { update(dt); render(); }
+  if (g && (screen === 'game' || screen === 'end')) update(dt);
+  if (g && (screen === 'game' || screen === 'end' || screen === 'pause')) render();
   requestAnimationFrame(frame);
 }
 resize();
+refreshMenu();
 requestAnimationFrame(frame);
-window.__lcs = { get g() { return g; }, get screen() { return screen; }, startGame, openPack, special, setRarity: r => { rarity = r; } };
+window.__lcs = { get g() { return g; }, get screen() { return screen; }, startGame, openPack, pounce, useItem, ultimate, setRarity: r => { rarity = r; } };
