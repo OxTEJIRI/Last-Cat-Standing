@@ -1,48 +1,52 @@
 # CMBG: Last Cat Standing
 
-A fan-made, free browser battle royale for the [Catmeme Battlegrounds](https://catbattlegrounds.com) cats. You open a card pack, drop into the trenches and try to be the last of 10 cats alive. Rounds take 90 seconds and work on phones and desktop, with no wallet needed.
+A fan-made, free browser battle royale for the [Catmeme Battlegrounds](https://catbattlegrounds.com) cats. You open a card pack, drop into the trenches and try to be the last of 10 cats alive. It works on phones and desktop, with no wallet and no sign-up.
 
 > Fan-made. Not affiliated with CMBG.
 
-## What's here
+## Play
+
+Open `index.html` through any static web server, or deploy the folder to Vercel or Netlify as a static site. There's no build step.
+
+| | Desktop | Phone |
+|---|---|---|
+| Move | WASD or arrow keys | Drag on the left side |
+| Scratch | Automatic when a cat is in reach | Automatic |
+| Special | `Space` | Tap the right side |
+| Mute | `M` | The sound button |
+
+## How a round works
+
+1. **Open a pack.** Tap it 3 times to reveal your fighter.
+   - **Street Cat** (Common, 60%): fast, with the quickest swipes.
+   - **Alley Boss** (Rare, 30%): slow and tanky. Every hit does 2 damage and knocks cats back.
+   - **Chain Royalty** (Legendary, 10%): a long fishbone blade that hits every cat in reach.
+2. **Drop in.** Steer your landing spot before the countdown ends.
+3. **Survive.** You have 9 lives, shown as paws. The 9 bots each have 8.
+4. **Special:** throws or fires the item you're holding. With no item, it's a pounce dash that ends in a free scratch.
+
+**Loot:**
+- **Yarn bomb:** thrown, does 2 damage in an area.
+- **Laser pointer:** for 4.5 seconds, nearby bots chase the dot and ignore you.
+- **Catnip:** heals 2 lives and gives a burst of speed.
+- **Gold CA box:** a coin flip. A real CA gives 8 seconds of 2X damage. A fake CA bites for 2 lives.
+
+**Hazards:**
+- **Red candles:** they crash down after a shadow warning.
+- **Rugs:** they get pulled out from under you, which stuns you and costs a life.
+- **Liquidation zone:** it closes over 90 seconds, and cats outside it lose lives.
+
+When the round ends, the result screen shows your place, kills and lives left, with a **Share on X** button that tags @Cmbg_RH.
+
+## Files
 
 | Path | What it is |
 |---|---|
-| `concept.html` | A 28-second animated design trailer. Everything is drawn with canvas code, with no image assets. |
-| `scripts/export.mjs` | Renders `concept.html` frame by frame and encodes an MP4 with ffmpeg. |
-
-The playable game (`index.html`) is in progress.
-
-## The design
-
-- **Opening a pack:** you get one of three fighters, matching CMBG's card rarities.
-  - Street Cat (Common, 60%)
-  - Alley Boss (Rare, 30%)
-  - Chain Royalty (Legendary, 10%)
-- **Lives:** health is 9 lives, shown as paw icons.
-- **Weapons:**
-  - **Fishbone blade:** melee swing.
-  - **Yarn bomb:** thrown, damages an area.
-  - **Laser pointer:** bots chase the dot.
-  - **Catnip:** heals and speeds you up.
-- **Hazards:**
-  - Red candles crash down from above.
-  - Rug tiles get pulled away.
-  - Fake CA loot bites.
-- **Liquidation zone:** it shrinks over the round, and cats outside it lose lives.
-- **End screen:** shows your place, kills and lives left, with a Share on X button.
-- **Style:** CMBG's lime `#d4ff00` on ink `#0b0b0b`, using the Anton and JetBrains Mono fonts.
-
-## Run the trailer
-
-Open `concept.html` in a browser.
-
-| Key | Action |
-|---|---|
-| Click | Replay |
-| `P` | Pause |
-| `1`–`6` | Jump to a scene |
-| `←` `→` | Seek 1 second back or forward |
+| `index.html` | The page, screens and styles. |
+| `game.js` | Game loop, input, bot AI, combat, loot, hazards, HUD and sound (synthesized with Web Audio). |
+| `art.js` | All the canvas drawing: cats, cards, pack and props. There are no image files. |
+| `concept.html` | The 28-second animated design trailer. |
+| `scripts/export.mjs` | Renders `concept.html` to an MP4. |
 
 ## Export the trailer to MP4
 

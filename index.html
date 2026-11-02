@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Last Cat Standing</title>
+<meta name="description" content="Fan-made browser battle royale for the CMBG cats. Open a pack, drop in, be the last cat standing.">
+<meta property="og:title" content="CMBG: Last Cat Standing (fan-made)">
+<meta property="og:description" content="10 cats. 9 lives. 90-second rounds. Free in your browser, no wallet.">
+<meta name="theme-color" content="#0b0b0b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0b0b'/%3E%3Cellipse cx='32' cy='40' rx='12' ry='10' fill='%23d4ff00'/%3E%3Ccircle cx='18' cy='26' r='5' fill='%23d4ff00'/%3E%3Ccircle cx='27' cy='18' r='5' fill='%23d4ff00'/%3E%3Ccircle cx='37' cy='18' r='5' fill='%23d4ff00'/%3E%3Ccircle cx='46' cy='26' r='5' fill='%23d4ff00'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--lime:#d4ff00;--ink:#0b0b0b;--ink2:#1b1b1b;--muted:#c9c9c9;--red:#ff3d4d;--display:'Anton',Impact,'Arial Narrow',sans-serif;--mono:'JetBrains Mono',Consolas,monospace}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--ink);color:#fff;overflow:hidden;font-family:var(--mono);-webkit-user-select:none;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
+#game{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+.screen{position:fixed;inset:0;display:flex;z-index:5}
+.hidden{display:none!important}
+button{font:inherit}
+.btn{font-family:var(--display);font-size:clamp(24px,3.6vh,34px);padding:12px 32px;border-radius:8px;cursor:pointer;border:4px solid var(--ink);letter-spacing:.02em;line-height:1.1}
+.btn:active{transform:scale(.96)}
+.btn.ink{background:var(--ink);color:var(--lime)}
+.btn.lime{background:var(--lime);color:var(--ink);border-color:var(--lime)}
+.btn.outline{background:transparent;color:var(--lime);border-color:var(--lime)}
+#menu{background:var(--lime);color:var(--ink);overflow:hidden}
+.menu-wrap{position:relative;z-index:2;padding:clamp(18px,5vw,72px);display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:clamp(10px,2vh,18px);max-width:820px}
+.kicker{font-weight:700;font-size:clamp(11px,1.3vw,15px);letter-spacing:.04em}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(60px,13vh,168px);line-height:.92;margin:0}
+.title-box{background:var(--ink);color:var(--lime);padding:12px 20px;border-radius:6px}
+.title-box b{display:block;font-family:var(--display);font-weight:400;font-size:clamp(28px,5vh,54px)}
+.title-box span{color:var(--muted);font-size:12px}
+.how{font-size:12px;line-height:1.7;margin:0;max-width:520px}
+#hero{position:absolute;right:0;bottom:0;width:min(52vw,92vh);height:min(52vw,92vh);z-index:1;pointer-events:none}
+.foot{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:11px;opacity:.7;z-index:2}
+@media (max-aspect-ratio:1/1){
+ .menu-wrap{justify-content:flex-start;padding-top:7vh}
+ h1{font-size:clamp(52px,15vw,120px)}
+ #hero{width:62vw;height:62vw;right:-4vw;bottom:3vh}
+}
+#pack{background:var(--ink);flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px}
+#pack h2{font-family:var(--display);font-weight:400;font-size:clamp(32px,6vh,62px);margin:0;color:var(--lime);text-align:center;line-height:1}
+#stage{width:min(86vw,54vh);aspect-ratio:600/780;cursor:pointer}
+#packInfo{text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;max-width:460px}
+#packInfo p{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
+#end{background:rgba(11,11,11,.66);align-items:center;justify-content:center;padding:12px}
+.end-card{background:var(--ink2);border:2px solid #2e2e2e;border-radius:14px;padding:clamp(16px,4vw,34px);text-align:center;width:min(94vw,620px)}
+#endTitle{font-family:var(--display);font-weight:400;font-size:clamp(42px,9vw,86px);line-height:.95;margin:0}
+#endSub{font-family:var(--display);font-weight:400;font-size:clamp(28px,6vw,52px);margin:4px 0 14px;color:var(--lime)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.stat{background:var(--ink);border:1px solid #333;border-radius:8px;padding:10px 8px;text-align:left}
+.stat small{display:block;color:var(--muted);font-size:11px;font-weight:700}
+.stat b{font-family:var(--display);font-weight:400;font-size:clamp(18px,4vw,32px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+#endCause{color:var(--muted);font-size:13px;margin:0 0 16px;line-height:1.5}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#mute{position:fixed;top:10px;right:10px;z-index:9;background:var(--ink);color:var(--lime);border:2px solid var(--lime);border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<section id="menu" class="screen">
+ <div class="menu-wrap">
+  <div class="kicker">// FAN-MADE BATTLE ROYALE FOR THE CMBG CATS</div>
+  <h1>SPAWN.<br>SCRATCH.<br>SURVIVE.</h1>
+  <div class="title-box"><b>LAST CAT STANDING</b><span>10 cats · 9 lives · rounds under 2 minutes</span></div>
+  <button id="btnPlay" class="btn ink">OPEN A PACK</button>
+  <p class="how"><b>Desktop:</b> WASD or arrows to move. You scratch automatically. SPACE = special.<br><b>Phone:</b> drag on the left to move, tap the right side for special.</p>
+ </div>
+ <canvas id="hero"></canvas>
+ <div class="foot">Fan-made · not affiliated with CMBG · tag @Cmbg_RH</div>
+</section>
+
+<section id="pack" class="screen hidden">
+ <h2 id="packTitle">TAP THE PACK</h2>
+ <canvas id="stage" width="900" height="1170"></canvas>
+ <div id="packInfo" class="hidden">
+  <p id="fighterDesc"></p>
+  <button id="btnDrop" class="btn lime">DROP IN</button>
+ </div>
+</section>
+
+<section id="end" class="screen hidden">
+ <div class="end-card">
+  <h2 id="endTitle"></h2>
+  <h3 id="endSub"></h3>
+  <div class="stats" id="endStats"></div>
+  <p id="endCause"></p>
+  <div class="row">
+   <button id="btnShare" class="btn lime">SHARE ON X</button>
+   <button id="btnAgain" class="btn outline">PLAY AGAIN</button>
+  </div>
+ </div>
+</section>
+
+<button id="mute" aria-label="Toggle sound">SOUND ON</button>
+<script src="art.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
