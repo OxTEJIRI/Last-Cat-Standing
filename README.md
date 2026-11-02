@@ -6,7 +6,9 @@ A fan-made, free browser battle royale for the [Catmeme Battlegrounds](https://c
 
 ## Play
 
-Open `index.html` through any static web server, or deploy the folder to Vercel or Netlify as a static site. There's no build step.
+**[last-cat-standing.vercel.app](https://last-cat-standing.vercel.app/)**
+
+To run it yourself, serve the folder with any static web server. There's no build step.
 
 | | Desktop | Phone |
 |---|---|---|

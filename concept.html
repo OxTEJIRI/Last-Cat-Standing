@@ -535,7 +535,7 @@ function sceneEnd(u){
  X.fillStyle=INK;X.fillRect(0,0,W,H);
  X.font=`700 22px ${MF}`;X.fillStyle=LIME;X.textAlign='left';X.textBaseline='alphabetic';X.fillText('// FAN-MADE · FREE · PLAY IN YOUR BROWSER',90,120);
  for(const [w,t0,y,c] of[['LAST CAT',.05,345,'#fff'],['STANDING.',.3,560,LIME]]){const v=u-t0;if(v<0)continue;const k=1+.35*(1-eOut(v/.16));X.save();X.translate(80,y);X.scale(k,k);X.font=`230px ${DF}`;X.fillStyle=c;X.fillText(w,0,0);X.restore()}
- if(u>.6){const p=eOut((u-.6)/.4);X.globalAlpha=p;X.font=`500 24px ${MF}`;X.fillStyle=MUTED;X.fillText('PHONE + DESKTOP  ·  NO WALLET  ·  90-SECOND ROUNDS',90,640);
+ if(u>.6){const p=eOut((u-.6)/.4);X.globalAlpha=p;X.font=`500 24px ${MF}`;X.fillStyle=MUTED;X.fillText('PHONE + DESKTOP  ·  NO WALLET  ·  FAST ROUNDS',90,640);
   X.font=`64px ${DF}`;X.fillStyle='#fff';X.fillText('GMEOW OR GET SCRATCHED OUT.',90,752);X.globalAlpha=1}
  if(u>.4){const p=eOut((u-.4)/.6);
   drawCard(1350,lerp(900,480,p),270,400,'common',1,-.2,u);drawCard(1690,lerp(900,480,p),270,400,'rare',1,.2,u);drawCard(1520,lerp(950,440,p),300,445,'legendary',1,0,u)}
