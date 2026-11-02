@@ -15,7 +15,6 @@ To run it yourself, serve the folder with any static web server. There's no buil
 | Move | WASD or arrow keys | Drag on the left side |
 | Scratch | Automatic when a cat is in reach | Automatic |
 | Special | `Space` | Tap the right side |
-| Ultimate | `E` | Tap ULT |
 | Mute | `M` | The sound button |
 
 ## How a round works
@@ -27,12 +26,6 @@ To run it yourself, serve the folder with any static web server. There's no buil
 2. **Drop in.** Steer your landing spot before the countdown ends.
 3. **Survive.** You have 9 lives, shown as paws. The 9 bots each have 8.
 4. **Special:** throws or fires the item you're holding. With no item, it's a pounce dash that ends in a free scratch.
-5. **Ultimate** (`E`, or the ULT button on phones): charges as you deal damage.
-   - **Nine-Tail Rush** (Street Cat): three dashes at the nearest cats.
-   - **Ground Pound** (Alley Boss): a slam that hits and stuns everything close.
-   - **Blade Storm** (Chain Royalty): spinning plasma blades that shred everything around you.
-
-**The $CMBG chart:** the arena floor is a live price chart. Your kills pump it, and red-candle strikes print red candles. Kill streaks call out DOUBLE, TRIPLE and MEGA SCRATCH. The result screen shows how much you pumped the chart.
 
 **Loot:**
 - **Yarn bomb:** thrown, does 2 damage in an area.
